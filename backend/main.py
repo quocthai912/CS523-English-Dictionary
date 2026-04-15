@@ -65,6 +65,14 @@ app.include_router(dictionary_router)
 # ---------------------------------------------------------------------------
 
 
+@app.get("/")
+def read_root():
+    return {
+        "status": "success",
+        "message": "Welcome to English Dictionary API.",
+    }
+
+
 @app.get(
     "/health-check",
     tags=["Hệ thống"],

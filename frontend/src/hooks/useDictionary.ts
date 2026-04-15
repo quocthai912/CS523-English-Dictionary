@@ -1,20 +1,7 @@
 /**
  * useDictionary.ts
  * ================
- * Custom React Hook quản lý toàn bộ state và side effects
- * cho module từ điển.
- *
- * Vai trò
- * -------
- * - Tập trung toàn bộ state management vào một nơi duy nhất.
- * - Cung cấp interface đơn giản cho các component UI sử dụng.
- * - Các component chỉ cần gọi hook này, không cần biết gì về API.
- *
- * Nguyên tắc áp dụng
- * -------------------
- * - SRP : Hook chỉ lo state và API calls, không quan tâm đến render.
- * - DIP : Component phụ thuộc vào hook interface, không phụ thuộc
- *         trực tiếp vào API client.
+ * Custom hook quản lý state từ điển + persistence qua localStorage.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,49 +13,28 @@ import type {
   TrieSnapshot,
 } from "../types/dictionary";
 
-// ---------------------------------------------------------------------------
-// Hook interface
-// ---------------------------------------------------------------------------
+// Key lưu danh sách từ trong localStorage
+const STORAGE_KEY = "radix_trie_dictionary_entries";
 
 export interface UseDictionaryReturn {
-  /** Danh sách tất cả mục từ hiện có. */
   entries: DictionaryEntry[];
-  /** Snapshot cây Radix-Trie mới nhất. */
   trieSnapshot: TrieSnapshot | null;
-  /** Từ đang được highlight sau thao tác tìm kiếm. */
   highlightedWord: string | null;
-  /** Kết quả tìm kiếm gần nhất. */
   searchResult: DictionaryEntry | null;
-  /** Trạng thái loading cho từng thao tác. */
   loading: LoadingState;
-  /** Danh sách thông báo toast hiện tại. */
   toasts: ToastMessage[];
-  /** Thêm hoặc cập nhật một mục từ. */
   addEntry: (
     word: string,
     meaning: string,
     pronunciation: string,
     partOfSpeech: string,
   ) => Promise<void>;
-  /** Xóa một mục từ. */
   deleteEntry: (word: string) => Promise<void>;
-  /** Tìm kiếm một từ. */
   searchEntry: (word: string) => Promise<void>;
-  /** Xóa một toast theo id. */
   removeToast: (id: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Hook implementation
-// ---------------------------------------------------------------------------
-
-/**
- * Hook quản lý toàn bộ state và nghiệp vụ cho module từ điển.
- *
- * @returns Các state và action để component UI sử dụng.
- */
 export const useDictionary = (): UseDictionaryReturn => {
-  // --- State ---
   const [entries, setEntries] = useState<DictionaryEntry[]>([]);
   const [trieSnapshot, setTrieSnapshot] = useState<TrieSnapshot | null>(null);
   const [highlightedWord, setHighlightedWord] = useState<string | null>(null);
@@ -83,35 +49,48 @@ export const useDictionary = (): UseDictionaryReturn => {
     fetching: false,
   });
 
-  // Dùng ref để tránh stale closure trong auto-dismiss toast.
   const toastTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
 
-  // ---------------------------------------------------------------------------
-  // Toast helpers
-  // ---------------------------------------------------------------------------
+  // ------------------------------------------------------------------
+  // Lưu danh sách từ vào localStorage sau mỗi thay đổi
+  // ------------------------------------------------------------------
+  const saveToStorage = useCallback((data: DictionaryEntry[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      // localStorage đầy hoặc bị block — bỏ qua
+    }
+  }, []);
 
-  /** Hiển thị một toast mới và tự động xóa sau 3 giây. */
+  /** Đọc danh sách từ đã lưu từ localStorage. */
+  const loadFromStorage = useCallback((): DictionaryEntry[] => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as DictionaryEntry[]) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // ------------------------------------------------------------------
+  // Toast helpers
+  // ------------------------------------------------------------------
   const showToast = useCallback(
     (type: ToastMessage["type"], message: string) => {
       const id = `${Date.now()}-${Math.random()}`;
       setToasts((prev) => [...prev, { id, type, message }]);
-
-      // Tự động xóa toast sau 3 giây.
       const timer = setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
         toastTimers.current.delete(id);
       }, 3000);
-
       toastTimers.current.set(id, timer);
     },
     [],
   );
 
-  /** Xóa một toast theo id (khi người dùng bấm đóng). */
   const removeToast = useCallback((id: string) => {
-    // Huỷ timer nếu người dùng đóng toast trước 3 giây.
     const timer = toastTimers.current.get(id);
     if (timer) {
       clearTimeout(timer);
@@ -120,56 +99,85 @@ export const useDictionary = (): UseDictionaryReturn => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Refresh helpers
-  // ---------------------------------------------------------------------------
+  // ------------------------------------------------------------------
+  // Refresh state từ Backend
+  // ------------------------------------------------------------------
+  const refreshData = useCallback(
+    async (snapshot?: TrieSnapshot | null) => {
+      try {
+        const allEntries = await api.getAllEntries();
+        setEntries(allEntries.entries);
+        // Lưu vào localStorage mỗi khi có thay đổi
+        saveToStorage(allEntries.entries);
 
-  /** Tải lại danh sách từ và snapshot cây sau mỗi thao tác. */
-  const refreshData = useCallback(async (snapshot?: TrieSnapshot | null) => {
-    try {
-      // Lấy danh sách từ mới nhất.
-      const allEntries = await api.getAllEntries();
-      setEntries(allEntries.entries);
-
-      // Dùng snapshot từ response thao tác nếu có, không thì fetch riêng.
-      if (snapshot !== undefined) {
-        setTrieSnapshot(snapshot);
-      } else {
-        const trie = await api.getTrieSnapshot();
-        setTrieSnapshot(trie);
+        if (snapshot !== undefined) {
+          setTrieSnapshot(snapshot);
+        } else {
+          const trie = await api.getTrieSnapshot();
+          setTrieSnapshot(trie);
+        }
+      } catch {
+        // Lỗi fetch không ảnh hưởng thao tác chính
       }
-    } catch {
-      // Lỗi fetch danh sách không ảnh hưởng thao tác chính.
-    }
-  }, []);
+    },
+    [saveToStorage],
+  );
 
-  // ---------------------------------------------------------------------------
-  // Lấy dữ liệu ban đầu khi component mount
-  // ---------------------------------------------------------------------------
-
+  // ------------------------------------------------------------------
+  // Khởi động: restore dữ liệu từ localStorage vào Backend mới
+  // ------------------------------------------------------------------
   useEffect(() => {
-    const fetchInitial = async () => {
+    const restoreData = async () => {
       setLoading((prev) => ({ ...prev, fetching: true }));
       try {
+        // Bước 1: Kiểm tra Backend có dữ liệu chưa
+        const currentEntries = await api.getAllEntries();
+
+        if (currentEntries.entries.length > 0) {
+          // Backend đã có data (session còn sống) — dùng luôn
+          await refreshData();
+          return;
+        }
+
+        // Bước 2: Backend rỗng — thử restore từ localStorage
+        const savedEntries = loadFromStorage();
+        if (savedEntries.length === 0) {
+          // Lần đầu dùng, không có gì để restore
+          await refreshData();
+          return;
+        }
+
+        // Bước 3: Re-insert từng từ vào Backend mới
+        showToast("info", `Đang khôi phục ${savedEntries.length} từ...`);
+
+        for (const entry of savedEntries) {
+          await api.addEntry({
+            word: entry.word,
+            meaning: entry.meaning,
+            pronunciation: entry.pronunciation,
+            part_of_speech: entry.part_of_speech,
+          });
+        }
+
+        // Bước 4: Refresh lại state sau khi restore xong
         await refreshData();
-      } catch {
         showToast(
-          "error",
-          "Không thể kết nối đến server. Vui lòng kiểm tra Backend.",
+          "success",
+          `Đã khôi phục ${savedEntries.length} từ thành công!`,
         );
+      } catch {
+        showToast("error", "Không thể kết nối đến server.");
       } finally {
         setLoading((prev) => ({ ...prev, fetching: false }));
       }
     };
 
-    fetchInitial();
-  }, [refreshData, showToast]);
+    restoreData();
+  }, [refreshData, loadFromStorage, showToast]);
 
-  // ---------------------------------------------------------------------------
+  // ------------------------------------------------------------------
   // Actions
-  // ---------------------------------------------------------------------------
-
-  /** Thêm hoặc cập nhật một mục từ. */
+  // ------------------------------------------------------------------
   const addEntry = useCallback(
     async (
       word: string,
@@ -185,14 +193,9 @@ export const useDictionary = (): UseDictionaryReturn => {
           pronunciation,
           part_of_speech: partOfSpeech,
         });
-
-        // Cập nhật snapshot cây từ response.
         await refreshData(result.trie_snapshot);
-
-        // Highlight từ vừa thêm trên cây.
         setHighlightedWord(word.toLowerCase());
         setTimeout(() => setHighlightedWord(null), 3000);
-
         showToast("success", result.message);
       } catch (error) {
         showToast("error", (error as Error).message);
@@ -203,16 +206,13 @@ export const useDictionary = (): UseDictionaryReturn => {
     [refreshData, showToast],
   );
 
-  /** Xóa một mục từ. */
   const deleteEntry = useCallback(
     async (word: string) => {
       setLoading((prev) => ({ ...prev, deleting: true }));
       try {
         const result = await api.deleteEntry(word);
-
         if (result.success) {
           await refreshData(result.trie_snapshot);
-          // Xóa highlight và search result nếu từ bị xóa đang được chọn.
           if (highlightedWord === word.toLowerCase()) {
             setHighlightedWord(null);
             setSearchResult(null);
@@ -230,14 +230,12 @@ export const useDictionary = (): UseDictionaryReturn => {
     [highlightedWord, refreshData, showToast],
   );
 
-  /** Tìm kiếm chính xác một từ. */
   const searchEntry = useCallback(
     async (word: string) => {
       setLoading((prev) => ({ ...prev, searching: true }));
       setSearchResult(null);
       try {
         const result = await api.searchEntry(word);
-
         if (result.success && result.entry) {
           setSearchResult(result.entry);
           setHighlightedWord(word.toLowerCase());
@@ -246,7 +244,6 @@ export const useDictionary = (): UseDictionaryReturn => {
         } else {
           showToast("info", result.message);
         }
-        // Cập nhật snapshot sau tìm kiếm.
         await refreshData(result.trie_snapshot);
       } catch (error) {
         showToast("error", (error as Error).message);

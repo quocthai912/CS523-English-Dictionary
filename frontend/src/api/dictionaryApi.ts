@@ -25,7 +25,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Base URL của Backend API. Đọc từ env hoặc dùng giá trị mặc định. */
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 /** Axios instance dùng chung cho toàn bộ ứng dụng. */
 const apiClient = axios.create({

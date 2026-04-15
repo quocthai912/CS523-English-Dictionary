@@ -42,6 +42,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:4173",  # Vite preview server
     "http://127.0.0.1:5173",
     "http://127.0.0.1:4173",
+    "https://cs-523-english-dictionary.vercel.app",
 ]
 
 app.add_middleware(

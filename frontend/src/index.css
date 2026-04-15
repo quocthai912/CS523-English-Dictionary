@@ -1,1 +1,236 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   FONTS
+============================================================ */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+/* ============================================================
+   DESIGN TOKENS — Light Mode
+============================================================ */
+:root {
+  /* Layout */
+  --background: #fafafa;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  /* Brand */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+
+  /* Status */
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --destructive: #f43f5e;
+  --destructive-light: #ffe4e6;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+
+  /* Muted */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  /* Accent */
+  --accent: #e0e7ff;
+  --accent-foreground: #4f46e5;
+
+  /* Border / Input */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --input-background: #ffffff;
+  --switch-background: #cbd5e1;
+  --ring: #4f46e5;
+
+  /* Popover */
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  /* Visualization */
+  --node-default: #6366f1;
+  --node-highlight: #10b981;
+  --node-new: #3b82f6;
+  --node-delete: #f43f5e;
+  --node-merge: #a855f7;
+  --edge-default: #94a3b8;
+  --edge-highlight: #10b981;
+
+  /* Radius */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Font */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Slider */
+  --slider-track: #e2e8f0;
+}
+
+/* ============================================================
+   DESIGN TOKENS — Dark Mode
+============================================================ */
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --primary-foreground: #ffffff;
+
+  --secondary: #334155;
+  --secondary-foreground: #f8fafc;
+
+  --muted: #334155;
+  --muted-foreground: #94a3b8;
+
+  --accent: #312e81;
+  --accent-foreground: #a5b4fc;
+
+  --border: #334155;
+  --input: #334155;
+  --input-background: #1e293b;
+  --switch-background: #475569;
+  --ring: #6366f1;
+
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+
+  --node-default: #818cf8;
+  --node-highlight: #34d399;
+  --node-new: #60a5fa;
+  --node-delete: #fb7185;
+  --node-merge: #c084fc;
+  --edge-default: #64748b;
+  --edge-highlight: #34d399;
+
+  /* Slider */
+  --slider-track: #334155;
+}
+
+/* ============================================================
+   BASE STYLES
+============================================================ */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+  margin: 0;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Đảm bảo CSS vars được kế thừa đúng trong mọi element */
+*,
+*::before,
+*::after {
+  border-color: var(--border);
+}
+
+/* Smooth transition khi đổi theme */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms;
+}
+
+/* ============================================================
+   CUSTOM RANGE SLIDER
+============================================================ */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--primary) 0%,
+    var(--primary) var(--val, 50%),
+    var(--slider-track) var(--val, 50%),
+    var(--slider-track) 100%
+  );
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--slider-track);
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--primary);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--primary);
+  border: 2px solid var(--card);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  margin-top: -5px;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--primary);
+  border: 2px solid var(--card);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+/* ============================================================
+   SCROLLBAR — Dark Mode
+============================================================ */
+.dark aside::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dark aside::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+.dark aside::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+.dark aside::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
